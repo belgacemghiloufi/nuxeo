@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
@@ -60,12 +61,6 @@ public class ConfigurationHolder {
 
     /** Templates included in this configuration. */
     protected final List<Path> templates;
-
-    protected boolean configurable;
-
-    public ConfigurationHolder(Path home) {
-        this(home, home.resolve("bin").resolve("nuxeo.conf"));
-    }
 
     public ConfigurationHolder(Path home, Path nuxeoConf) {
         this.home = requireNonNull(home).toAbsolutePath();
@@ -276,14 +271,5 @@ public class ConfigurationHolder {
         defaultConfig.clear();
         userConfig.clear();
         templates.clear();
-    }
-
-    protected void setConfigurable(boolean configurable) {
-        this.configurable = configurable;
-        if (!configurable) {
-            // clear the configuration - probably an error case
-            defaultConfig.clear();
-            userConfig.clear();
-        }
     }
 }

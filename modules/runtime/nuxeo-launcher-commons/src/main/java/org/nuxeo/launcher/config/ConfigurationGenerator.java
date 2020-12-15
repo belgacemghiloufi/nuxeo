@@ -57,7 +57,6 @@ import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.StringTokenizer;
@@ -280,6 +279,9 @@ public class ConfigurationGenerator {
 
     public static final String JULI_JAR_REGEX = "tomcat-juli" + VERSIONED_REGEX + ".jar";
 
+    /** Environment used to load the configuration, generally {@link System#getenv()}. */
+    private final Map<String, String> environment;
+
     /** @since 11.5 */
     private final ConfigurationHolder configHolder;
 
@@ -335,8 +337,9 @@ public class ConfigurationGenerator {
      */
     public ConfigurationGenerator(boolean quiet, boolean debug) {
         logLevel = quiet ? Level.DEBUG : Level.INFO;
-        Path nuxeoHome;
+        environment = System.getenv();
         File serverHome = Environment.getDefault().getServerHome();
+        Path nuxeoHome;
         if (serverHome != null) {
             nuxeoHome = serverHome.toPath();
         } else {
@@ -347,7 +350,7 @@ public class ConfigurationGenerator {
         }
         String nuxeoConfPath = System.getProperty(NUXEO_CONF);
         if (nuxeoConfPath == null) {
-            configHolder = new ConfigurationHolder(nuxeoHome);
+            configHolder = new ConfigurationHolder(nuxeoHome, nuxeoHome.resolve("bin").resolve("nuxeo.conf"));
         } else {
             configHolder = new ConfigurationHolder(nuxeoHome, Path.of(nuxeoConfPath));
         }
@@ -362,7 +365,7 @@ public class ConfigurationGenerator {
         backingServicesConfigurator = new BackingServiceConfigurator(this);
         log.log(logLevel, "Nuxeo home:          {}", configHolder::getHomePath);
         log.log(logLevel, "Nuxeo configuration: {}", configHolder::getNuxeoConfPath);
-        String nuxeoProfiles = getEnvironment(NUXEO_PROFILES);
+        String nuxeoProfiles = environment.get(NUXEO_PROFILES);
         if (StringUtils.isNotBlank(nuxeoProfiles)) {
             log.log(logLevel, "Nuxeo profiles:      {}", nuxeoProfiles);
         }
@@ -392,6 +395,7 @@ public class ConfigurationGenerator {
     /**
      * @see #PARAM_FORCE_GENERATION
      */
+    @Deprecated(since = "11.1") // not used
     public void setForceGeneration(boolean forceGeneration) {
         this.forceGeneration = forceGeneration;
     }
@@ -401,6 +405,7 @@ public class ConfigurationGenerator {
      * @return true if configuration will be generated from templates
      * @since 5.4.2
      */
+    @Deprecated(since = "11.1") // not used
     public boolean isForceGeneration() {
         return forceGeneration;
     }
@@ -504,7 +509,7 @@ public class ConfigurationGenerator {
             templates = "default";
             configHolder.put(PARAM_TEMPLATES_NAME, templates);
         }
-        String profiles = getEnvironment(NUXEO_PROFILES);
+        String profiles = environment.get(NUXEO_PROFILES);
         if (StringUtils.isNotBlank(profiles)) {
             templates += TEMPLATE_SEPARATOR + profiles;
         }
@@ -1395,8 +1400,8 @@ public class ConfigurationGenerator {
             throws ConfigurationException, IOException {
         File templateDir = getTemplateDirectory(template);
         File templateConf;
-        String nuxeoEnv = getEnvironment(NUXEO_ENVIRONMENT, "");
-        if (nuxeoEnv.isBlank()) {
+        String nuxeoEnv = environment.get(NUXEO_ENVIRONMENT);
+        if (isBlank(nuxeoEnv)) {
             templateConf = new File(templateDir, NUXEO_DEFAULT_CONF);
         } else {
             templateConf = new File(templateDir, String.format(NUXEO_ENVIRONMENT_CONF_FORMAT, nuxeoEnv));
@@ -1661,32 +1666,6 @@ public class ConfigurationGenerator {
      */
     protected String getJavaOptsString() {
         return String.join(" ", getJavaOpts(Function.identity()));
-    }
-
-    /**
-     * @return the value of an environment variable
-     * @since 9.1
-     * @apiNote exists to be overridden by tests
-     */
-    protected String getEnvironment(String key) {
-        return System.getenv(key);
-    }
-
-    /**
-     * @return the value of an environment variable
-     * @since 11.1
-     * @see #getEnvironment(String)
-     */
-    protected String getEnvironment(String key, String defaultValue) {
-        return Objects.requireNonNullElse(getEnvironment(key), defaultValue);
-    }
-
-    /**
-     * @return the nuxeo.defaults file for current {@code NUXEO_ENVIRONMENT}
-     * @since 11.1
-     */
-    protected String getNuxeoEnvironmentConfName() {
-        return String.format(NUXEO_ENVIRONMENT_CONF_FORMAT, getEnvironment(NUXEO_ENVIRONMENT));
     }
 
     /**
