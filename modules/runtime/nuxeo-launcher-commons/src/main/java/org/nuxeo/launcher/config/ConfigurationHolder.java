@@ -27,7 +27,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
@@ -113,6 +112,10 @@ public class ConfigurationHolder {
 
     public Path getLogPath() {
         return getPropertyAsPath(Environment.NUXEO_LOG_DIR);
+    }
+
+    public Path getLogConfigPath() {
+        return getHomePath().resolve("lib").resolve("log4j2.xml");
     }
 
     protected Path getPackagesPath() {
