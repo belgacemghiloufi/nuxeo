@@ -449,37 +449,6 @@ public class ConfigurationGeneratorTest extends AbstractConfigurationTest {
         }
     }
 
-    @Test
-    public void testEnvironmentVariablesExpansion() {
-
-        // Nominal case
-        assertEquals("10.0.0.1", configGenerator.getUserConfig().getProperty(ConfigurationGenerator.PARAM_DB_HOST));
-
-        // No env variable with no default value
-        assertNull(configGenerator.getUserConfig().getProperty(ConfigurationGenerator.PARAM_DB_JDBC_URL));
-
-        // No env variable with default value
-        assertEquals("myvalue", configGenerator.getUserConfig().getProperty("nuxeo.default.prop"));
-
-        // Nominal case for boolean env variables
-        assertEquals("true", configGenerator.getUserConfig().getProperty("nuxeo.env.prop4"));
-
-        assertEquals("false", configGenerator.getUserConfig().getProperty("org.nuxeo.fake.vindoz"));
-
-        // Case where only part of the value has to be replaced
-        assertEquals("jdbc://10.0.0.1", configGenerator.getUserConfig().getProperty("nuxeo.env.prop2"));
-
-        assertEquals("jdbc://10.0.0.1 false", configGenerator.getUserConfig().getProperty("nuxeo.env.prop3"));
-    }
-
-    @Test
-    public void testEnvironmentVariableInTemplates() {
-        configGenerator.getUserConfig()
-                       .setProperty(ConfigurationGenerator.PARAM_TEMPLATES_NAME,
-                               "${env:NUXEO_DB_TYPE:default},docker,${env:NUXEO_DB_HOST:docker}");
-        assertEquals("default,docker,10.0.0.1", String.join(",", configGenerator.getTemplateList()));
-    }
-
     /**
      * NXP-22031 - test the configuration reloading after wizard setup when using Nuxeo GUI launcher.
      */
