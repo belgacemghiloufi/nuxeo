@@ -20,10 +20,20 @@
  */
 package org.nuxeo.launcher.config;
 
-import static java.util.Arrays.asList;
 import static java.util.function.Predicate.not;
 import static org.apache.commons.lang3.StringUtils.isBlank;
-import static org.nuxeo.launcher.config.ServerConfigurator.PARAM_HTTP_TOMCAT_ADMIN_PORT;
+import static org.nuxeo.launcher.config.ConfigurationConstants.ENV_NUXEO_ENVIRONMENT;
+import static org.nuxeo.launcher.config.ConfigurationConstants.ENV_NUXEO_PROFILES;
+import static org.nuxeo.launcher.config.ConfigurationConstants.FILE_NUXEO_CONF;
+import static org.nuxeo.launcher.config.ConfigurationConstants.FILE_NUXEO_DEFAULTS;
+import static org.nuxeo.launcher.config.ConfigurationConstants.PARAM_CONTEXT_PATH;
+import static org.nuxeo.launcher.config.ConfigurationConstants.PARAM_FORCE_GENERATION;
+import static org.nuxeo.launcher.config.ConfigurationConstants.PARAM_HTTP_PORT;
+import static org.nuxeo.launcher.config.ConfigurationConstants.PARAM_HTTP_TOMCAT_ADMIN_PORT;
+import static org.nuxeo.launcher.config.ConfigurationConstants.PARAM_LOOPBACK_URL;
+import static org.nuxeo.launcher.config.ConfigurationConstants.PARAM_NUXEO_CONF;
+import static org.nuxeo.launcher.config.ConfigurationConstants.PARAM_TEMPLATES_NAME;
+import static org.nuxeo.launcher.config.ConfigurationConstants.PARAM_TEMPLATES_PARSING_EXTENSIONS;
 
 import java.io.File;
 import java.io.IOException;
@@ -69,98 +79,19 @@ public class ConfigurationGenerator {
 
     private static final Logger log = LogManager.getLogger(ConfigurationGenerator.class);
 
-    /** @since 11.1 */
-    public static final String NUXEO_ENVIRONMENT = "NUXEO_ENVIRONMENT";
-
-    /** @since 11.1 */
-    public static final String NUXEO_PROFILES = "NUXEO_PROFILES";
-
     /**
      * @since 6.0
      * @implNote also used for profiles
      */
     public static final String TEMPLATE_SEPARATOR = ",";
 
-    /** @since 5.6 */
-    protected static final String CONFIGURATION_PROPERTIES = "configuration.properties";
-
-    public static final String NUXEO_CONF = "nuxeo.conf";
-
-    public static final String TEMPLATES = "templates";
-
-    public static final String NUXEO_DEFAULT_CONF = "nuxeo.defaults";
-
     /** @since 11.1 */
     public static final String NUXEO_ENVIRONMENT_CONF_FORMAT = "nuxeo.%s";
-
-    /**
-     * Absolute or relative PATH to the user chosen templates (comma separated list)
-     */
-    public static final String PARAM_TEMPLATES_NAME = "nuxeo.templates";
-
-    public static final String PARAM_TEMPLATE_DBTYPE = "nuxeo.db.type";
-
-    public static final String OLD_PARAM_TEMPLATES_PARSING_EXTENSIONS = "nuxeo.templates.parsing.extensions";
-
-    public static final String PARAM_TEMPLATES_PARSING_EXTENSIONS = "nuxeo.plaintext_parsing_extensions";
-
-    public static final String PARAM_TEMPLATES_FREEMARKER_EXTENSIONS = "nuxeo.freemarker_parsing_extensions";
 
     /** Absolute or relative PATH to the included templates (comma separated list). */
     protected static final String PARAM_INCLUDED_TEMPLATES = "nuxeo.template.includes";
 
-    public static final String PARAM_FORCE_GENERATION = "nuxeo.force.generation";
-
-    public static final List<String> DB_LIST = asList("default", "mongodb", "postgresql", "oracle", "mysql", "mariadb",
-            "mssql", "db2");
-
-    /**
-     * @deprecated since 11.1, Nuxeo Wizard has been removed.
-     */
-    @Deprecated(since = "11.1")
-    public static final String PARAM_WIZARD_DONE = "nuxeo.wizard.done";
-
-    /**
-     * @deprecated since 11.1, Nuxeo Wizard has been removed.
-     */
-    @Deprecated(since = "11.1")
-    public static final String PARAM_WIZARD_RESTART_PARAMS = "wizard.restart.params";
-
-    public static final String PARAM_LOOPBACK_URL = "nuxeo.loopback.url";
-
-    public static final String PARAM_BIND_ADDRESS = "nuxeo.bind.address";
-
-    public static final String PARAM_HTTP_PORT = "nuxeo.server.http.port";
-
-    public static final String PARAM_CONTEXT_PATH = "org.nuxeo.ecm.contextPath";
-
-    /**
-     * @deprecated since 11.1, Nuxeo Wizard has been removed.
-     */
-    @Deprecated(since = "11.1")
-    public static final String PARAM_MP_DIR = "nuxeo.distribution.marketplace.dir";
-
-    /**
-     * @deprecated since 11.1, Nuxeo Wizard has been removed.
-     */
-    @Deprecated(since = "11.1")
-    public static final String DISTRIBUTION_MP_DIR = "setupWizardDownloads";
-
     public static final String INSTALL_AFTER_RESTART = "installAfterRestart.log";
-
-    /**
-     * @since 8.1
-     * @deprecated since 11.1, seems unused
-     */
-    @Deprecated(since = "11.1")
-    public static final String PARAM_MONGODB_NAME = "nuxeo.mongodb.dbname";
-
-    /**
-     * @since 8.1
-     * @deprecated since 11.1, seems unused
-     */
-    @Deprecated(since = "11.1")
-    public static final String PARAM_MONGODB_SERVER = "nuxeo.mongodb.server";
 
     /**
      * Java options split by spaces followed by an even number of quotes (or zero).
@@ -168,18 +99,6 @@ public class ConfigurationGenerator {
      * @since 9.3
      */
     protected static final Pattern JAVA_OPTS_PATTERN = Pattern.compile("[ ]+(?=([^\"]*\"[^\"]*\")*[^\"]*$)");
-
-    /**
-     * Keys which value must be displayed thoughtfully
-     *
-     * @since 8.1
-     */
-    public static final List<String> SECRET_KEYS = asList("mailservice.password",
-            "mail.transport.password", "nuxeo.http.proxy.password", "nuxeo.ldap.bindpassword",
-            "nuxeo.user.emergency.password");
-
-    /** @since 5.6 */
-    public static final String PARAM_NUXEO_URL = "nuxeo.url";
 
     /**
      * Java options configured in {@code bin/nuxeo.conf} and {@code bin/nuxeoctl}.
@@ -255,13 +174,13 @@ public class ConfigurationGenerator {
         configChecker = new ConfigurationChecker(systemProperties);
         serverConfigurator = new ServerConfigurator(this, configHolder);
 
-        systemProperties.setProperty(NUXEO_CONF, configHolder.getNuxeoConfPath().toString());
+        systemProperties.setProperty(PARAM_NUXEO_CONF, configHolder.getNuxeoConfPath().toString());
 
         initLogsIfNeeded(configHolder);
 
         log.log(logLevel, "Nuxeo home:          {}", configHolder::getHomePath);
         log.log(logLevel, "Nuxeo configuration: {}", configHolder::getNuxeoConfPath);
-        String nuxeoProfiles = environment.get(NUXEO_PROFILES);
+        String nuxeoProfiles = environment.get(ENV_NUXEO_PROFILES);
         if (StringUtils.isNotBlank(nuxeoProfiles)) {
             log.log(logLevel, "Nuxeo profiles:      {}", nuxeoProfiles);
         }
@@ -369,7 +288,7 @@ public class ConfigurationGenerator {
         configHolder.clear();
 
         var templatesPath = configHolder.getTemplatesPath();
-        if (Files.notExists(templatesPath.resolve(NUXEO_DEFAULT_CONF))) {
+        if (Files.notExists(templatesPath.resolve(FILE_NUXEO_DEFAULTS))) {
             throw new ConfigurationException("Missing nuxeo.defaults configuration in: " + templatesPath);
         }
 
@@ -400,7 +319,7 @@ public class ConfigurationGenerator {
             templates = "default";
             configHolder.put(PARAM_TEMPLATES_NAME, templates);
         }
-        String profiles = environment.get(NUXEO_PROFILES);
+        String profiles = environment.get(ENV_NUXEO_PROFILES);
         if (StringUtils.isNotBlank(profiles)) {
             templates += TEMPLATE_SEPARATOR + profiles;
         }
@@ -499,7 +418,7 @@ public class ConfigurationGenerator {
                 continue;
             }
             includedTemplates.add(chosenTemplate);
-            if (Files.notExists(chosenTemplate.resolve(NUXEO_DEFAULT_CONF))) {
+            if (Files.notExists(chosenTemplate.resolve(FILE_NUXEO_DEFAULTS))) {
                 log.warn("Ignore template (no default configuration): {}", nextToken);
                 continue;
             }
@@ -543,8 +462,8 @@ public class ConfigurationGenerator {
 
     /**
      * Save changed parameters in {@code nuxeo.conf}. If a parameter value is empty ("" or null), then the property is
-     * unset. {@link #PARAM_TEMPLATES_NAME} and {@link #PARAM_FORCE_GENERATION} cannot be unset, but their value can be
-     * changed.
+     * unset. {@link ConfigurationConstants#PARAM_TEMPLATES_NAME} and
+     * {@link ConfigurationConstants#PARAM_FORCE_GENERATION} cannot be unset, but their value can be changed.
      * <p>
      * This method does not check values in map: use {@link #saveFilteredConfiguration(Map)} for parameters filtering.
      *
@@ -715,17 +634,6 @@ public class ConfigurationGenerator {
     }
 
     /**
-     * @return File pointing to the directory containing the marketplace packages included in the distribution
-     * @since 5.6
-     * @deprecated since 11.1, Nuxeo Wizard has been removed.
-     */
-    @Deprecated(since = "11.1", forRemoval = true) // not used
-    public File getDistributionMPDir() {
-        String mpDir = configHolder.getProperty(PARAM_MP_DIR, DISTRIBUTION_MP_DIR);
-        return new File(getNuxeoHome(), mpDir);
-    }
-
-    /**
      * @return Install/upgrade file
      * @since 5.4.1
      */
@@ -734,7 +642,7 @@ public class ConfigurationGenerator {
     }
 
     /**
-     * Add template(s) to the {@link #PARAM_TEMPLATES_NAME} list if not already present
+     * Add template(s) to the {@link ConfigurationConstants#PARAM_TEMPLATES_NAME} list if not already present
      *
      * @param templatesToAdd Comma separated templates to add
      * @since 5.5
@@ -750,7 +658,7 @@ public class ConfigurationGenerator {
     }
 
     /**
-     * Return the list of templates declared by {@link #PARAM_TEMPLATES_NAME}.
+     * Return the list of templates declared by {@link ConfigurationConstants#PARAM_TEMPLATES_NAME}.
      *
      * @since 9.2
      */
@@ -763,7 +671,7 @@ public class ConfigurationGenerator {
     }
 
     /**
-     * Remove template(s) from the {@link #PARAM_TEMPLATES_NAME} list
+     * Remove template(s) from the {@link ConfigurationConstants#PARAM_TEMPLATES_NAME} list
      *
      * @param templatesToRm Comma separated templates to remove
      * @since 5.5
@@ -818,9 +726,9 @@ public class ConfigurationGenerator {
             templatePath = configHolder.getTemplatesPath().resolve(template);
         }
         Path templateConf;
-        String nuxeoEnv = environment.get(NUXEO_ENVIRONMENT);
+        String nuxeoEnv = environment.get(ENV_NUXEO_ENVIRONMENT);
         if (isBlank(nuxeoEnv)) {
-            templateConf = templatePath.resolve(NUXEO_DEFAULT_CONF);
+            templateConf = templatePath.resolve(FILE_NUXEO_DEFAULTS);
         } else {
             templateConf = templatePath.resolve(String.format(NUXEO_ENVIRONMENT_CONF_FORMAT, nuxeoEnv));
         }
@@ -940,7 +848,7 @@ public class ConfigurationGenerator {
         protected boolean quiet = true;
 
         protected Map<String, String> parametersMigration = Map.ofEntries(
-                Map.entry(OLD_PARAM_TEMPLATES_PARSING_EXTENSIONS, PARAM_TEMPLATES_PARSING_EXTENSIONS), //
+                Map.entry("nuxeo.templates.parsing.extensions", PARAM_TEMPLATES_PARSING_EXTENSIONS), //
                 Map.entry("nuxeo.db.user.separator.key", "nuxeo.db.user_separator_key"), //
                 Map.entry("mail.pop3.host", "mail.store.host"), //
                 Map.entry("mail.pop3.port", "mail.store.port"), //
@@ -1006,9 +914,9 @@ public class ConfigurationGenerator {
             }
             if (nuxeoConf == null) {
                 // resolve nuxeoConf from System properties
-                String nuxeoConfProperty = systemProperties.getProperty(NUXEO_CONF);
+                String nuxeoConfProperty = systemProperties.getProperty(PARAM_NUXEO_CONF);
                 if (nuxeoConfProperty == null) {
-                    nuxeoConf = nuxeoHome.resolve("bin").resolve("nuxeo.conf");
+                    nuxeoConf = nuxeoHome.resolve("bin").resolve(FILE_NUXEO_CONF);
                 } else {
                     nuxeoConf = Path.of(nuxeoConfProperty);
                 }

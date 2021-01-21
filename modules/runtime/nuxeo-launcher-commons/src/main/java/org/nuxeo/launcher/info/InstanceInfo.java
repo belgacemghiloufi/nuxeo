@@ -19,8 +19,9 @@
 
 package org.nuxeo.launcher.info;
 
+import static java.util.Arrays.asList;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
-import static org.nuxeo.launcher.config.ConfigurationGenerator.NUXEO_PROFILES;
+import static org.nuxeo.launcher.config.ConfigurationConstants.ENV_NUXEO_PROFILES;
 import static org.nuxeo.launcher.config.ConfigurationGenerator.TEMPLATE_SEPARATOR;
 
 import java.io.IOException;
@@ -42,12 +43,19 @@ import javax.xml.bind.annotation.XmlRootElement;
 import org.nuxeo.common.Environment;
 import org.nuxeo.common.codec.Crypto;
 import org.nuxeo.connect.update.LocalPackage;
-import org.nuxeo.launcher.config.ConfigurationGenerator;
 import org.nuxeo.launcher.config.ConfigurationHolder;
 
 @XmlAccessorType(XmlAccessType.NONE)
 @XmlRootElement(name = "instance")
 public class InstanceInfo {
+
+    /**
+     * Keys which value must be displayed thoughtfully.
+     *
+     * @since 8.1
+     */
+    protected static final List<String> SECRET_KEYS = asList("mailservice.password", "mail.transport.password",
+            "nuxeo.http.proxy.password", "nuxeo.ldap.bindpassword", "nuxeo.user.emergency.password");
 
     public InstanceInfo() {
     }
@@ -101,7 +109,7 @@ public class InstanceInfo {
         }
         nxInstance.config = new ConfigurationInfo();
         // profiles
-        String profiles = System.getenv(NUXEO_PROFILES);
+        String profiles = System.getenv(ENV_NUXEO_PROFILES);
         if (isNotBlank(profiles)) {
             nxInstance.config.profiles.addAll(Arrays.asList(profiles.split(TEMPLATE_SEPARATOR)));
         }
@@ -133,8 +141,8 @@ public class InstanceInfo {
         var keyVals = new ArrayList<KeyValueInfo>(keys.size());
         for (String key : new TreeSet<>(keys)) {
             String value = configHolder.getRawProperty(key);
-            if (ConfigurationGenerator.SECRET_KEYS.contains(key) || key.contains("password")
-                    || key.equals(Environment.SERVER_STATUS_KEY) || Crypto.isEncrypted(value)) {
+            if (SECRET_KEYS.contains(key) || key.contains("password") || key.equals(Environment.SERVER_STATUS_KEY)
+                    || Crypto.isEncrypted(value)) {
                 value = "********";
             }
             keyVals.add(new KeyValueInfo(key, value));
