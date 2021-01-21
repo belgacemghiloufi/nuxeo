@@ -35,11 +35,6 @@ import static org.nuxeo.launcher.config.ConfigurationGenerator.NUXEO_PROFILES;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -515,35 +510,6 @@ public class ConfigurationGeneratorTest extends AbstractConfigurationTest {
     }
 
     @Test
-    public void testCheckEncoding() throws Exception {
-        Path tempFile = Files.createTempFile("", "");
-        // Test UTF8
-        Files.writeString(tempFile, "nuxéo", StandardCharsets.UTF_8, StandardOpenOption.CREATE);
-        try {
-            Charset charset = ConfigurationGenerator.checkFileCharset(tempFile.toFile());
-            assertEquals(StandardCharsets.UTF_8, charset);
-        } finally {
-            Files.deleteIfExists(tempFile);
-        }
-        // test ISO_8859_1
-        Files.writeString(tempFile, "nuxéo", StandardCharsets.ISO_8859_1, StandardOpenOption.CREATE);
-        try {
-            Charset charset = ConfigurationGenerator.checkFileCharset(tempFile.toFile());
-            assertEquals(StandardCharsets.ISO_8859_1, charset);
-        } finally {
-            Files.deleteIfExists(tempFile);
-        }
-        // test US_ASCII
-        Files.writeString(tempFile, "nuxeo", StandardCharsets.US_ASCII, StandardOpenOption.CREATE);
-        try {
-            Charset charset = ConfigurationGenerator.checkFileCharset(tempFile.toFile());
-            assertEquals(StandardCharsets.US_ASCII, charset);
-        } finally {
-            Files.deleteIfExists(tempFile);
-        }
-    }
-
-    @Test
     public void testIncludeProfile() {
         String profileToTest = "testprofile";
         assertFalse("Profile should not be included", isTemplateIncluded(profileToTest));
@@ -559,24 +525,6 @@ public class ConfigurationGeneratorTest extends AbstractConfigurationTest {
 
     protected boolean isTemplateIncluded(String template) {
         return configGenerator.getIncludedTemplates().stream().map(File::getName).anyMatch(isEqual(template));
-    }
-
-    /**
-     * Checks environment variable replacement within templates (NXP-29392).
-     *
-     * @since 11.2
-     */
-    @Test
-    public void testEnvironmentVariableInNuxeoDefaults() {
-        assertEquals("myprop1defaultvalue", configGenerator.getUserConfig().getProperty("my.prop1"));
-        assertEquals("", configGenerator.getUserConfig().getProperty("my.prop2"));
-
-        env.put("MY_PROP_1", "myprop1newvalue");
-        env.put("MY_PROP_2", "myprop2newvalue");
-        assertTrue(configGenerator.init(true));
-
-        assertEquals("myprop1newvalue", configGenerator.getUserConfig().getProperty("my.prop1"));
-        assertEquals("myprop2newvalue", configGenerator.getUserConfig().getProperty("my.prop2"));
     }
 
 }
