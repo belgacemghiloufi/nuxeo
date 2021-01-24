@@ -39,11 +39,11 @@ import static org.nuxeo.launcher.config.ConfigurationConstants.TOMCAT_STARTUP_CL
 
 import java.io.Console;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.SocketTimeoutException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.time.Duration;
@@ -543,6 +543,11 @@ public class NuxeoLauncher {
 
     private static final int PAGE_SIZE = 20;
 
+    /**
+     * @since 11.5
+     */
+    protected static final String INSTALL_AFTER_RESTART = "installAfterRestart.log";
+
     protected ConfigurationGenerator configurationGenerator;
 
     public final ConfigurationGenerator getConfigurationGenerator() {
@@ -602,7 +607,7 @@ public class NuxeoLauncher {
         if (guis == null) {
             return null;
         }
-        return guis.get(configurationGenerator.getNuxeoConf().toString());
+        return guis.get(configurationGenerator.getConfigurationHolder().getNuxeoConfPath().toString());
     }
 
     /**
@@ -612,7 +617,7 @@ public class NuxeoLauncher {
         if (guis == null) {
             guis = new HashMap<>();
         }
-        guis.put(configurationGenerator.getNuxeoConf().toString(), gui);
+        guis.put(configurationGenerator.getConfigurationHolder().getNuxeoConfPath().toString(), gui);
     }
 
     public NuxeoLauncher(ConfigurationGenerator configurationGenerator) {
@@ -627,9 +632,11 @@ public class NuxeoLauncher {
         if (!configurationGenerator.init(true)) {
             throw new IllegalStateException("Initialization failed");
         }
+        var configHolder = configurationGenerator.getConfigurationHolder();
+
         statusServletClient = new StatusServletClient(configurationGenerator);
-        statusServletClient.setKey(configurationGenerator.getUserConfig().getProperty(Environment.SERVER_STATUS_KEY));
-        String processRegex = "^(?!/bin/sh).*" + Pattern.quote(configurationGenerator.getNuxeoConf().getPath()) + ".*"
+        statusServletClient.setKey(configHolder.getProperty(Environment.SERVER_STATUS_KEY));
+        String processRegex = "^(?!/bin/sh).*" + Pattern.quote(configHolder.getNuxeoConfPath().toString()) + ".*"
                 + Pattern.quote(TOMCAT_STARTUP_CLASS) + ".*$";
         processManager = ProcessManager.of(processRegex);
         // Set OS-specific decorations
@@ -639,8 +646,7 @@ public class NuxeoLauncher {
     }
 
     /**
-     * Gets the Java options defined in Nuxeo configuration files, e.g. {@code bin/nuxeo.conf} and
-     * {@code bin/nuxeoctl}.
+     * Gets the Java options defined in Nuxeo configuration files, e.g. {@code bin/nuxeo.conf} and {@code bin/nuxeoctl}.
      *
      * @return the Java options.
      */
@@ -691,7 +697,7 @@ public class NuxeoLauncher {
     }
 
     protected Collection<? extends String> getServerProperties() {
-        File home = configurationGenerator.getNuxeoHome();
+        File home = configurationGenerator.getConfigurationHolder().getHomePath().toFile();
         return List.of(formatPropertyToCommandLine("catalina.base", home.getPath()),
                 formatPropertyToCommandLine("catalina.home", home.getPath()));
     }
@@ -701,7 +707,7 @@ public class NuxeoLauncher {
     }
 
     protected String getClassPath() {
-        File binDir = configurationGenerator.getNuxeoBinDir();
+        File binDir = configurationGenerator.getConfigurationHolder().getHomePath().resolve("bin").toFile();
         String cp = ".";
         cp = addToClassPath(cp, "nxserver" + File.separator + "lib");
         cp = addToClassPath(cp, getBinJarName(binDir, ConfigurationGenerator.BOOTSTRAP_JAR_REGEX));
@@ -722,10 +728,11 @@ public class NuxeoLauncher {
     }
 
     protected Collection<String> getNuxeoProperties() {
+        var configHolder = configurationGenerator.getConfigurationHolder();
+
         List<String> nuxeoProperties = new ArrayList<>();
-        nuxeoProperties.add(formatPropertyToCommandLine(NUXEO_HOME, configurationGenerator.getNuxeoHome().getPath()));
-        nuxeoProperties.add(
-                formatPropertyToCommandLine(FILE_NUXEO_CONF, configurationGenerator.getNuxeoConf().getPath()));
+        nuxeoProperties.add(formatPropertyToCommandLine(NUXEO_HOME, configHolder.getHomePath().toString()));
+        nuxeoProperties.add(formatPropertyToCommandLine(FILE_NUXEO_CONF, configHolder.getNuxeoConfPath().toString()));
         nuxeoProperties.add(formatNuxeoPropertyToCommandLine(NUXEO_LOG_DIR));
         nuxeoProperties.add(formatNuxeoPropertyToCommandLine(NUXEO_DATA_DIR));
         nuxeoProperties.add(formatNuxeoPropertyToCommandLine(NUXEO_TMP_DIR));
@@ -750,14 +757,14 @@ public class NuxeoLauncher {
     }
 
     protected String addToClassPath(String cp, String filename) {
-        File classPathEntry = new File(configurationGenerator.getNuxeoHome(), filename);
-        if (!classPathEntry.exists()) {
-            classPathEntry = new File(filename);
+        Path classPathEntry = configurationGenerator.getConfigurationHolder().getHomePath().resolve(filename);
+        if (Files.notExists(classPathEntry)) {
+            classPathEntry = Path.of(filename);
         }
-        if (!classPathEntry.exists()) {
+        if (Files.notExists(classPathEntry)) {
             throw new RuntimeException("Tried to add nonexistent classpath entry: " + filename);
         }
-        cp += System.getProperty("path.separator") + classPathEntry.getPath();
+        cp += System.getProperty("path.separator") + classPathEntry;
         return cp;
     }
 
@@ -1657,14 +1664,14 @@ public class NuxeoLauncher {
 
             log.debug("Check if install in progress...");
             int tries = 0;
-            while (configurationGenerator.isInstallInProgress()) {
+            while (isInstallInProgress()) {
                 tries++;
-                if (!getConnectBroker().executePending(configurationGenerator.getInstallFile(), true, true,
-                        ignoreMissing) || tries > 9) {
+                if (!getConnectBroker().executePending(getInstallFile().toFile(), true, true, ignoreMissing)
+                        || tries > 9) {
                     throw new NuxeoLauncherException(String.format(
                             "Start interrupted due to failure on pending actions. You can resume with a new start"
                                     + " or you can restore the file '%s', optionally using the '--%s' option.",
-                            configurationGenerator.getInstallFile().getName(), OPTION_IGNORE_MISSING), EXIT_CODE_ERROR);
+                            INSTALL_AFTER_RESTART, OPTION_IGNORE_MISSING), EXIT_CODE_ERROR);
                 }
                 // reload configuration
                 configurationGenerator = ConfigurationGenerator.builder().quiet(quiet).init(true).build();
@@ -1707,9 +1714,10 @@ public class NuxeoLauncher {
         startCommand.add("start");
         startCommand.addAll(Arrays.asList(params));
 
+        Path homePath = configurationGenerator.getConfigurationHolder().getHomePath();
         // build and start process
         ProcessBuilder pb = new ProcessBuilder(getOSCommand(startCommand));
-        pb.directory(configurationGenerator.getNuxeoHome());
+        pb.directory(homePath.toFile());
         if (logProcessOutput) {
             // don't redirect input as we want a graceful shutdown
             pb.redirectOutput(ProcessBuilder.Redirect.INHERIT).redirectError(ProcessBuilder.Redirect.INHERIT);
@@ -1717,7 +1725,7 @@ public class NuxeoLauncher {
         log.debug("Server command: {}", pb::command);
         Process nuxeoProcess = pb.start();
         nuxeoProcess.onExit().thenAccept(p -> {
-            if (SystemUtils.IS_OS_WINDOWS && configurationGenerator.getNuxeoHome().getPath().contains(" ")) {
+            if (SystemUtils.IS_OS_WINDOWS && homePath.toString().contains(" ")) {
                 // NXP-17679
                 log.error("The server path must not contain spaces under Windows.");
             }
@@ -1739,8 +1747,8 @@ public class NuxeoLauncher {
                                         "Sent server start command but could not get process ID.", EXIT_CODE_ERROR, e));
         }
         log.info("Server started with process ID: {}", pid);
-        File pidFile = new File(configurationGenerator.getPidDir(), "nuxeo.pid");
-        try (FileWriter writer = new FileWriter(pidFile)) {
+        try (var writer = Files.newBufferedWriter(
+                configurationGenerator.getConfigurationHolder().getPidDirPath().resolve("nuxeo.pid"))) {
             writer.write(Long.toString(pid));
         }
         return nuxeoProcess;
@@ -1972,7 +1980,7 @@ public class NuxeoLauncher {
         stopCommand.add("stop");
         stopCommand.addAll(Arrays.asList(params));
         ProcessBuilder pb = new ProcessBuilder(getOSCommand(stopCommand));
-        pb.directory(configurationGenerator.getNuxeoHome());
+        pb.directory(configurationGenerator.getConfigurationHolder().getHomePath().toFile());
         log.debug("Server command: {}", pb::command);
         return pb.start();
     }
@@ -2032,7 +2040,11 @@ public class NuxeoLauncher {
      */
     public static NuxeoLauncher createLauncher(String[] args) throws ParseException, IOException, PackageException {
         CommandLine cmdLine = parseOptions(args);
-        ConfigurationGenerator cg = ConfigurationGenerator.builder().quiet(quiet).hideDeprecationWarnings(cmdLine.hasOption(OPTION_HIDE_DEPRECATION)).build();
+        ConfigurationGenerator cg = ConfigurationGenerator.builder()
+                                                          .quiet(quiet)
+                                                          .hideDeprecationWarnings(
+                                                                  cmdLine.hasOption(OPTION_HIDE_DEPRECATION))
+                                                          .build();
         NuxeoLauncher launcher = new NuxeoLauncher(cg);
         launcher.connectBroker = new ConnectBroker(launcher.configurationGenerator.getEnv());
         launcher.setArgs(cmdLine);
@@ -2223,7 +2235,7 @@ public class NuxeoLauncher {
         if (new Version(info.distribution.version).isSnapshot()) {
             connectBroker.setAllowSNAPSHOT(true);
         }
-        connectBroker.setPendingFile(configurationGenerator.getInstallFile().toPath());
+        connectBroker.setPendingFile(getInstallFile());
     }
 
     protected ConnectBroker getConnectBroker() {
@@ -2241,7 +2253,7 @@ public class NuxeoLauncher {
      * List all local packages.
      */
     protected void pkgList() {
-        getConnectBroker().listPending(configurationGenerator.getInstallFile());
+        getConnectBroker().listPending(getInstallFile().toFile());
         getConnectBroker().pkgList();
     }
 
@@ -2251,7 +2263,7 @@ public class NuxeoLauncher {
      * @since 5.6
      */
     protected void pkgListAll() {
-        getConnectBroker().listPending(configurationGenerator.getInstallFile());
+        getConnectBroker().listPending(getInstallFile().toFile());
         getConnectBroker().pkgListAll();
     }
 
@@ -2261,8 +2273,8 @@ public class NuxeoLauncher {
 
     protected boolean pkgInstall(String[] pkgIDs) {
         boolean cmdOK = true;
-        if (configurationGenerator.isInstallInProgress()) {
-            cmdOK = getConnectBroker().executePending(configurationGenerator.getInstallFile(), true,
+        if (isInstallInProgress()) {
+            cmdOK = getConnectBroker().executePending(getInstallFile().toFile(), true,
                     !cmdLine.hasOption(OPTION_NODEPS), ignoreMissing);
         }
         return cmdOK && getConnectBroker().pkgInstall(Arrays.asList(pkgIDs), ignoreMissing);
@@ -2360,9 +2372,8 @@ public class NuxeoLauncher {
     protected boolean pkgRequest(List<String> pkgsToAdd, List<String> pkgsToInstall, List<String> pkgsToUninstall,
             List<String> pkgsToRemove) {
         boolean cmdOK = true;
-        if (configurationGenerator.isInstallInProgress()) {
-            cmdOK = getConnectBroker().executePending(configurationGenerator.getInstallFile(), true, true,
-                    ignoreMissing);
+        if (isInstallInProgress()) {
+            cmdOK = getConnectBroker().executePending(getInstallFile().toFile(), true, true, ignoreMissing);
         }
         return cmdOK && getConnectBroker().pkgRequest(pkgsToAdd, pkgsToInstall, pkgsToUninstall, pkgsToRemove, true,
                 ignoreMissing);
@@ -2462,5 +2473,20 @@ public class NuxeoLauncher {
      */
     protected boolean pkgShow(String[] packages) {
         return getConnectBroker().pkgShow(Arrays.asList(packages));
+    }
+
+    /**
+     * @since 11.5
+     */
+    protected Path getInstallFile() {
+        return configurationGenerator.getConfigurationHolder().getDataPath().resolve(INSTALL_AFTER_RESTART);
+    }
+
+    /**
+     * @return true if there's an install in progress
+     * @since 11.5
+     */
+    public boolean isInstallInProgress() {
+        return Files.exists(getInstallFile());
     }
 }
